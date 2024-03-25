@@ -50,10 +50,9 @@ COPY transactions FROM '/path/to/transactions.csv' DELIMITER ',' CSV HEADER;
 COPY oil FROM '/path/to/oil.csv' DELIMITER ',' CSV HEADER;
 COPY holidays_events FROM '/path/to/holidays_events.csv' DELIMITER ',' CSV HEADER;
 
-
-SELECT t.date, t.store_nbr, t.sales, t.onpromotion, s.city, s.state, s.type, s.cluster, o.dcoilwtico, h.type AS holiday_type
+SELECT t.id, t.date, t.store_nbr, t.family, t.sales, t.onpromotion, s.city, s.state, s.type, s.cluster, o.dcoilwtico, h.type AS holiday_type, h.locale, h.locale_name
 FROM train t
 JOIN stores s ON t.store_nbr = s.store_nbr
 LEFT JOIN oil o ON t.date = o.date
 LEFT JOIN holidays_events h ON t.date = h.date
-ORDER BY t.date, t.store_nbr
+ORDER BY t.id, t.date, t.store_nbr
