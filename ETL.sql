@@ -1,5 +1,6 @@
+-- Table Creation
 CREATE TABLE test (
-    id INTEGER PRIMARY KEY,
+    id INTEGER,
     date DATE,
     store_nbr INTEGER,
     family VARCHAR(50),
@@ -7,7 +8,7 @@ CREATE TABLE test (
 );
 
 CREATE TABLE train (
-    id INTEGER PRIMARY KEY,
+    id INTEGER,
     date DATE,
     store_nbr INTEGER,
     family VARCHAR(50),
@@ -16,7 +17,7 @@ CREATE TABLE train (
 );
 
 CREATE TABLE stores (
-    store_nbr INTEGER PRIMARY KEY,
+    store_nbr INTEGER,
     city VARCHAR(50),
     state VARCHAR(50),
     type VARCHAR(10),
@@ -24,18 +25,18 @@ CREATE TABLE stores (
 );
 
 CREATE TABLE transactions (
-    date DATE PRIMARY KEY,
+    date DATE,
     store_nbr INTEGER,
     transactions INTEGER
 );
 
 CREATE TABLE oil (
-    date DATE PRIMARY KEY,
+    date DATE,
     dcoilwtico FLOAT
 );
 
 CREATE TABLE holidays_events (
-    date DATE PRIMARY KEY,
+    date DATE,
     type VARCHAR(50),
     locale VARCHAR(50),
     locale_name VARCHAR(50),
@@ -43,16 +44,43 @@ CREATE TABLE holidays_events (
     transferred BOOLEAN
 );
 
-COPY test FROM '/path/to/test.csv' DELIMITER ',' CSV HEADER;
-COPY train FROM '/path/to/train.csv' DELIMITER ',' CSV HEADER;
-COPY stores FROM '/path/to/stores.csv' DELIMITER ',' CSV HEADER;
-COPY transactions FROM '/path/to/transactions.csv' DELIMITER ',' CSV HEADER;
-COPY oil FROM '/path/to/oil.csv' DELIMITER ',' CSV HEADER;
-COPY holidays_events FROM '/path/to/holidays_events.csv' DELIMITER ',' CSV HEADER;
+-- Data Import (COPY)
+COPY test FROM '/Users/haewon/Documents/test.csv' DELIMITER ',' CSV HEADER;
+COPY train FROM '/Users/haewon/Documents/train.csv' DELIMITER ',' CSV HEADER;
+COPY stores FROM '/Users/haewon/Documents/stores.csv' DELIMITER ',' CSV HEADER;
+COPY transactions FROM '/Users/haewon/Documents/transactions.csv' DELIMITER ',' CSV HEADER;
+COPY oil FROM '/Users/haewon/Documents/oil.csv' DELIMITER ',' CSV HEADER;
+COPY holidays_events FROM '/Users/haewon/Documents/holidays_events.csv' DELIMITER ',' CSV HEADER;
 
-SELECT t.id, t.date, t.store_nbr, t.family, t.sales, t.onpromotion, s.city, s.state, s.type, s.cluster, o.dcoilwtico, h.type AS holiday_type, h.locale, h.locale_name
-FROM train t
-JOIN stores s ON t.store_nbr = s.store_nbr
-LEFT JOIN oil o ON t.date = o.date
-LEFT JOIN holidays_events h ON t.date = h.date
-ORDER BY t.id, t.date, t.store_nbr
+--Creating a New Table (holiday_dates) and Populating with Data
+CREATE TABLE holiday_dates AS -- Create a new table called holiday_dates
+SELECT
+    dates::date AS date,
+    CASE 
+        WHEN holidays_events.date IS NOT NULL THEN TRUE 
+        WHEN EXTRACT(DOW FROM dates) IN (0, 6) THEN TRUE -- 0 is Sunday, 6 is Saturday
+        ELSE FALSE
+    END AS is_holiday,
+    holidays_events.type,
+    holidays_events.locale,
+    holidays_events.locale_name,
+    holidays_events.description,
+    holidays_events.transferred
+FROM
+    generate_series('2013-01-01'::date, '2017-12-26'::date, '1 day') AS dates
+LEFT JOIN
+    holidays_events ON dates::date = holidays_events.date
+ORDER BY
+    dates
+	
+--Joining Tables for Analysis (Train Data)
+SELECT t.*, s.*, h.is_holiday, h.type, h.locale, h.locale_name
+FROM train AS t
+JOIN stores AS s ON t.store_nbr = s.store_nbr
+JOIN holiday_dates AS h ON t.date = h.date
+
+--Joining Tables for Analysis (Test Data)
+SELECT t.*, s.*, h.is_holiday, h.type, h.locale, h.locale_name
+FROM test AS t
+JOIN stores AS s ON t.store_nbr = s.store_nbr
+JOIN holiday_dates AS h ON t.date = h.date
