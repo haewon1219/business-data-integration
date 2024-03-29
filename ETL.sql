@@ -44,6 +44,7 @@ CREATE TABLE holidays_events (
     transferred BOOLEAN
 );
 
+
 -- Data Import (COPY)
 COPY test FROM '/Users/haewon/Documents/test.csv' DELIMITER ',' CSV HEADER;
 COPY train FROM '/Users/haewon/Documents/train.csv' DELIMITER ',' CSV HEADER;
@@ -52,35 +53,39 @@ COPY transactions FROM '/Users/haewon/Documents/transactions.csv' DELIMITER ',' 
 COPY oil FROM '/Users/haewon/Documents/oil.csv' DELIMITER ',' CSV HEADER;
 COPY holidays_events FROM '/Users/haewon/Documents/holidays_events.csv' DELIMITER ',' CSV HEADER;
 
---Creating a New Table (holiday_dates) and Populating with Data
-CREATE TABLE holiday_dates AS -- Create a new table called holiday_dates
-SELECT
-    dates::date AS date,
-    CASE 
-        WHEN holidays_events.date IS NOT NULL THEN TRUE 
-        WHEN EXTRACT(DOW FROM dates) IN (0, 6) THEN TRUE -- 0 is Sunday, 6 is Saturday
-        ELSE FALSE
-    END AS is_holiday,
-    holidays_events.type,
-    holidays_events.locale,
-    holidays_events.locale_name,
-    holidays_events.description,
-    holidays_events.transferred
-FROM
-    generate_series('2013-01-01'::date, '2017-12-26'::date, '1 day') AS dates
-LEFT JOIN
-    holidays_events ON dates::date = holidays_events.date
-ORDER BY
-    dates
-	
---Joining Tables for Analysis (Train Data)
-SELECT t.*, s.*, h.is_holiday, h.type, h.locale, h.locale_name
-FROM train AS t
-JOIN stores AS s ON t.store_nbr = s.store_nbr
-JOIN holiday_dates AS h ON t.date = h.date
 
---Joining Tables for Analysis (Test Data)
-SELECT t.*, s.*, h.is_holiday, h.type, h.locale, h.locale_name
-FROM test AS t
-JOIN stores AS s ON t.store_nbr = s.store_nbr
-JOIN holiday_dates AS h ON t.date = h.date
+-- Insert Holiday Events for Saturdays, Sundays, Christmas, and New Year
+INSERT INTO holidays_events (date, type, locale, locale_name, description, transferred)
+SELECT 
+    generate_series::date AS date, -- Selecting the generated date
+    'Holiday' AS type, -- Setting type as 'Holiday' for all entries
+    t.locale,
+    t.locale_name,
+    CASE 
+        WHEN EXTRACT(ISODOW FROM generate_series) = 6 THEN 'Saturday'
+        WHEN EXTRACT(ISODOW FROM generate_series) = 7 THEN 'Sunday'
+        WHEN EXTRACT(MONTH FROM generate_series) = 12 AND EXTRACT(DAY FROM generate_series) = 24 THEN 'Christmas Eve'
+        WHEN EXTRACT(MONTH FROM generate_series) = 12 AND EXTRACT(DAY FROM generate_series) = 25 THEN 'Christmas Day'
+        WHEN EXTRACT(MONTH FROM generate_series) = 1 AND EXTRACT(DAY FROM generate_series) = 1 THEN 'New Year'
+    END AS description, -- Assigning appropriate descriptions
+    false AS transferred -- Marking transferred as false for all entries
+FROM 
+    generate_series('2012-01-01'::date, '2017-12-31'::date, '1 day'::interval) AS generate_series -- Generating series of dates from 2012-01-01 to 2017-12-31 with interval of 1 day
+CROSS JOIN 
+    (SELECT DISTINCT locale, locale_name FROM holidays_events) AS t -- Cross joining with distinct locale and locale_name from holidays_events table
+WHERE 
+    EXTRACT(ISODOW FROM generate_series) IN (6, 7)
+    OR (EXTRACT(MONTH FROM generate_series) = 12 AND EXTRACT(DAY FROM generate_series) = 24)
+    OR (EXTRACT(MONTH FROM generate_series) = 12 AND EXTRACT(DAY FROM generate_series) = 25)
+    OR (EXTRACT(MONTH FROM generate_series) = 1 AND EXTRACT(DAY FROM generate_series) = 1)
+ORDER BY 
+    date;
+
+
+-- Joining Tables (train data)
+SELECT t.ID, t.date, t.store_nbr, t.family, t.onpromotion,
+       s.city, s.state, s.type, s.cluster,
+       h.type AS holiday_type, h.locale, h.locale_name, h.description, h.transferred
+FROM train AS t
+LEFT JOIN stores AS s ON t.store_nbr = s.store_nbr
+LEFT JOIN holidays_events AS h ON t.date = h.date AND s.city = h.locale_name;
